@@ -1,0 +1,148 @@
+name: PGN4 Converter CI
+
+on:
+  push:
+    branches: [ main, copilot/fix-3 ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Run unit tests
+      run: npm test
+      
+    - name: Start development server
+      run: npm run dev &
+      env:
+        CI: true
+        
+    - name: Wait for server to start
+      run: sleep 5
+      
+    - name: Install Playwright
+      run: npx playwright install chromium
+      
+    - name: Run browser tests
+      run: |
+        node -e "
+        import('playwright').then(async ({ chromium }) => {
+          const browser = await chromium.launch();
+          const page = await browser.newPage();
+          
+          // Test main converter page
+          await page.goto('http://localhost:3000');
+          await page.waitForSelector('#convert-btn:not([disabled])');
+          console.log('✅ Main converter page loaded successfully');
+          
+          // Test with Seirawan sample
+          await page.goto('http://localhost:3000/test.html');
+          await page.waitForLoadState('networkidle');
+          await page.waitForTimeout(2000); // Wait for FFish to initialize
+          
+          await page.click('button:has-text(\"Load Seirawan Sample\")');
+          await page.selectOption('select', 'seirawan');
+          await page.click('button:has-text(\"Convert PGN4\")');
+          
+          // Check if conversion was successful
+          const output = await page.inputValue('#output');
+          if (output.includes('Bf11j7/H') && output.includes('O-O/Eh11')) {
+            console.log('✅ Seirawan conversion test passed');
+          } else {
+            console.log('❌ Seirawan conversion test failed');
+            process.exit(1);
+          }
+          
+          await browser.close();
+        }).catch(err => {
+          console.error('❌ Browser test failed:', err);
+          process.exit(1);
+        });
+        "
+        
+    - name: Build static site
+      run: npm run build
+      
+  lint:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Run ESLint (if configured)
+      run: |
+        if [ -f ".eslintrc.js" ] || [ -f ".eslintrc.json" ] || [ -f "eslint.config.js" ]; then
+          npx eslint .
+        else
+          echo "ℹ️ No ESLint configuration found, skipping lint check"
+        fi
+      continue-on-error: true
+      
+    - name: Check JavaScript syntax
+      run: |
+        echo "Checking JavaScript syntax..."
+        node -c script.js
+        node -c test_suite.js
+        echo "✅ All JavaScript files have valid syntax"
+        
+  deploy-preview:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Create deployment preview info
+      run: |
+        echo "🚀 Deployment Preview Information" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "This PR includes the following changes to the PGN4 converter:" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Fixed Seirawan chess variant support" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Improved gating move notation handling" >> $GITHUB_STEP_SUMMARY  
+        echo "- ✅ Enhanced coordinate system conversion" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Added comprehensive test suite" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "📝 To test manually:" >> $GITHUB_STEP_SUMMARY
+        echo "1. Run \`npm install && npm run dev\`" >> $GITHUB_STEP_SUMMARY
+        echo "2. Navigate to http://localhost:3000/test.html" >> $GITHUB_STEP_SUMMARY
+        echo "3. Click 'Load Seirawan Sample' and 'Convert PGN4'" >> $GITHUB_STEP_SUMMARY
+        echo "4. Verify the output contains proper gating notation like 'Bf11j7/H'" >> $GITHUB_STEP_SUMMARY
