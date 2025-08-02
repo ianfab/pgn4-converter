@@ -36,16 +36,58 @@ new Module().then(loadedModule => {
 function coords(match, files, ranks) {
     const file = match[1];
     const rank = match[2];
-    const newFile = String.fromCharCode(file.charCodeAt(0) - (11 - files));
-    const newRank = parseInt(rank) - (11 - ranks);
+    
+    // Convert from larger board coordinates to 8x8 coordinates
+    // This assumes the larger board has padding around an 8x8 core
+    const fileDiff = files - 8;
+    const rankDiff = ranks - 8;
+    
+    // Calculate the offset (assuming symmetric padding)
+    const fileOffset = Math.floor(fileDiff / 2);
+    const rankOffset = Math.floor(rankDiff / 2);
+    
+    const newFile = String.fromCharCode(file.charCodeAt(0) - fileOffset);
+    const newRank = parseInt(rank) - rankOffset;
+    
     return newFile + newRank;
+}
+
+// Extract board dimensions from StartFen4
+function extractBoardDimensions(startFen4) {
+    if (!startFen4) return { files: 8, ranks: 8 };
+    
+    // Extract FEN part (after the last '-')
+    const fenParts = startFen4.split('-');
+    const fenPart = fenParts[fenParts.length - 1];
+    
+    // Count ranks and files
+    const ranks = fenPart.split('/');
+    const numRanks = ranks.length;
+    
+    let numFiles = 8;
+    if (ranks.length > 0) {
+        // Count files in first rank (split by comma)
+        const files = ranks[0].split(',');
+        numFiles = files.length;
+    }
+    
+    // For Seirawan chess specifically, the board appears to be larger in the FEN
+    // but the actual game coordinates suggest a smaller playable area
+    // Based on analysis: coordinates go up to k (11th file) and rank 11
+    if (numFiles > 11 || numRanks > 11) {
+        // Likely a padded board, use the coordinate analysis
+        return { files: 11, ranks: 11 };
+    }
+    
+    return { files: numFiles, ranks: numRanks };
 }
 
 // Gating move conversion - equivalent to Python gating()
 function gating(match) {
     const move = match[1];
-    const gatePiece = match[2];
-    const square = match[3];
+    const gatePieceColor = match[2]; // y or r 
+    const gatePiece = match[3]; // H, E, etc.
+    const square = match[4];
     
     if (SEIRAWAN_CASTLING[move]) {
         return SEIRAWAN_CASTLING[move] + '/' + gatePiece + square;
@@ -69,17 +111,25 @@ function pgn4ToPgn(pgn4Text, overrideVariant, files, ranks) {
     // Handle captures - remove piece type after 'x'
     pgn4 = pgn4.replace(/x[A-Z]([a-l][0-9]{1,2})/g, 'x$1');
     
-    // Only apply coordinate transformation for non-standard board sizes
-    if (files !== 8 || ranks !== 8) {
+    // Extract board dimensions from StartFen4 if present
+    let boardDimensions = { files, ranks };
+    const startFenMatch = pgn4.match(/\[StartFen4 "([^"]+)"\]/);
+    if (startFenMatch) {
+        boardDimensions = extractBoardDimensions(startFenMatch[1]);
+        console.log('Detected board dimensions:', boardDimensions);
+    }
+    
+    // Apply coordinate transformation for non-standard board sizes
+    if (boardDimensions.files !== 8 || boardDimensions.ranks !== 8) {
         // Convert coordinates using the coords function
         pgn4 = pgn4.replace(/([a-l])([0-9]{1,2})/g, (match, file, rank) => {
-            return coords([match, file, rank], files, ranks);
+            return coords([match, file, rank], boardDimensions.files, boardDimensions.ranks);
         });
     }
     
-    // Handle gating moves
-    pgn4 = pgn4.replace(/([^ ]*)&@[a-z]([A-Z])-([a-l][0-9]{1,2})/g, (match, move, gatePiece, square) => {
-        return gating([match, move, gatePiece, square]);
+    // Handle gating moves - updated pattern to capture the gate piece color
+    pgn4 = pgn4.replace(/([^ ]*)&@([a-z])([A-Z])-([a-l][0-9]{1,2})/g, (match, move, gatePieceColor, gatePiece, square) => {
+        return gating([match, move, gatePieceColor, gatePiece, square]);
     });
 
     let pgn = '';
@@ -151,6 +201,9 @@ function processMoveLine(line, variant, startFen) {
         move = move.replace(/S$/, '').replace(/\+#/, '#');
         
         if (!move) continue;
+        
+        // Convert dash notation to UCI format (e.g., h5-h7 -> h5h7)
+        move = move.replace(/([a-l][0-9]{1,2})-([a-l][0-9]{1,2})/g, '$1$2');
         
         try {
             // Create a board with current position
