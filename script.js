@@ -36,16 +36,20 @@ new Module().then(loadedModule => {
 function coords(match, files, ranks) {
     const file = match[1];
     const rank = match[2];
+    
+    // Direct translation from Python: chr(ord(file) - (11 - files)) + str(int(rank) - (11 - ranks))
     const newFile = String.fromCharCode(file.charCodeAt(0) - (11 - files));
     const newRank = parseInt(rank) - (11 - ranks);
+    
     return newFile + newRank;
 }
+
 
 // Gating move conversion - equivalent to Python gating()
 function gating(match) {
     const move = match[1];
-    const gatePiece = match[2];
-    const square = match[3];
+    const gatePiece = match[2]; // The piece letter (H, E, etc.)
+    const square = match[3];    // The square (f11, h11, etc.)
     
     if (SEIRAWAN_CASTLING[move]) {
         return SEIRAWAN_CASTLING[move] + '/' + gatePiece + square;
@@ -54,6 +58,7 @@ function gating(match) {
     }
 }
 
+// Main conversion function - equivalent to Python pgn4_to_pgn()
 // Main conversion function - equivalent to Python pgn4_to_pgn()
 function pgn4ToPgn(pgn4Text, overrideVariant, files, ranks) {
     if (!isInitialized) {
@@ -69,22 +74,23 @@ function pgn4ToPgn(pgn4Text, overrideVariant, files, ranks) {
     // Handle captures - remove piece type after 'x'
     pgn4 = pgn4.replace(/x[A-Z]([a-l][0-9]{1,2})/g, 'x$1');
     
-    // Only apply coordinate transformation for non-standard board sizes
-    if (files !== 8 || ranks !== 8) {
-        // Convert coordinates using the coords function
-        pgn4 = pgn4.replace(/([a-l])([0-9]{1,2})/g, (match, file, rank) => {
-            return coords([match, file, rank], files, ranks);
-        });
-    }
+    // Convert coordinates using the coords function (matches Python exactly)
+    pgn4 = pgn4.replace(/([a-l])([0-9]{1,2})/g, (match, file, rank) => {
+        return coords([match, file, rank], files, ranks);
+    });
     
-    // Handle gating moves
+    // Handle gating moves - matches Python regex exactly
     pgn4 = pgn4.replace(/([^ ]*)&@[a-z]([A-Z])-([a-l][0-9]{1,2})/g, (match, move, gatePiece, square) => {
         return gating([match, move, gatePiece, square]);
     });
 
     let pgn = '';
-    let variant = overrideVariant || 'chess'; // Default to chess
+    let variant = overrideVariant;
     let startFen = null;
+    
+    if (overrideVariant) {
+        startFen = ffish.startingFen(overrideVariant);
+    }
     
     const lines = pgn4.split(/\r?\n/);
     
@@ -102,14 +108,11 @@ function pgn4ToPgn(pgn4Text, overrideVariant, files, ranks) {
                         variant = variantMatch[1].replace("-chess", "").replace(/-/g, '');
                         const availableVariants = ffish.variants().split(' ');
                         if (!availableVariants.includes(variant)) {
-                            console.warn(`Unsupported variant: ${variant}, defaulting to chess`);
-                            variant = 'chess';
+                            throw new Error(`Unsupported variant: ${variant}`);
                         }
+                        startFen = ffish.startingFen(variant);
                     }
                 }
-                
-                // Set start FEN for the variant
-                startFen = ffish.startingFen(variant);
                 
                 // Add variant header
                 pgn += `[Variant "${variant.charAt(0).toUpperCase() + variant.slice(1)}"]\n`;

@@ -3,16 +3,19 @@
   "version": "1.0.0",
   "description": "Convert PGN4 format to standard PGN using ffishjs",
   "main": "index.html",
+  "type": "module",
   "scripts": {
     "dev": "serve .",
     "build": "echo 'No build step needed for static site'",
-    "start": "serve ."
+    "start": "serve .",
+    "test": "node test_validation.js"
   },
   "dependencies": {
     "ffish-es6": "^0.7.8"
   },
   "devDependencies": {
-    "serve": "^14.0.1"
+    "serve": "^14.0.1",
+    "playwright": "^1.40.0"
   },
   "keywords": [
     "chess",

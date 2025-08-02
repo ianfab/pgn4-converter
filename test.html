@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PGN4 Converter Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            border: 1px solid #ccc;
+            margin: 10px 0;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        textarea {
+            width: 100%;
+            min-height: 200px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .status.info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+        .status.error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .status.success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+    </style>
+</head>
+<body>
+    <h1>PGN4 Converter Test Interface</h1>
+    
+    <div class="test-section">
+        <h2>Test Sample Data</h2>
+        <button onclick="loadSample()">Load Sample</button>
+        <button onclick="clearInput()">Clear</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>Input PGN4</h2>
+        <textarea id="input" placeholder="Paste PGN4 content here..."></textarea>
+    </div>
+    
+    <div class="test-section">
+        <h2>Conversion Controls</h2>
+        <label>
+            Override variant: 
+            <select id="variant-select">
+                <option value="">Auto-detect</option>
+                <option value="seirawan">Seirawan</option>
+                <option value="chess">Chess</option>
+            </select>
+        </label>
+        <br><br>
+        <button onclick="testConversion()">Convert PGN4</button>
+        <button onclick="runUnitTests()">Run Unit Tests</button>
+    </div>
+    
+    <div id="status" class="status" style="display: none;"></div>
+    
+    <div class="test-section">
+        <h2>Output PGN</h2>
+        <textarea id="output" readonly placeholder="Converted PGN will appear here..."></textarea>
+    </div>
+    
+    <div class="test-section">
+        <h2>Debug Log</h2>
+        <textarea id="debug" readonly placeholder="Debug information will appear here..."></textarea>
+    </div>
+
+    <script type="module">
+        import Module from './node_modules/ffish-es6/ffish.js';
+        
+        let ffish = null;
+        let isInitialized = false;
+        
+        // Test data (consolidated)
+        const testPgn4Sample = `[GameNr "62401310"]
+[TimeControl "5+2"]
+[Variant "FFA"]
+[RuleVariants "EnPassant Play4Mate PromoteTo=BEHNQR SeirawanSetup"]
+[StartFen4 "R-0,1,0,1-1,1,1,1-1,1,1,1-0,0,0,0-0-{'seirawanDrops':(('d4','e4','f4','g4','h4','i4','j4','k4'),(),('d11','e11','f11','g11','h11','i11','j11','k11'),(),()),'pawnBaseRank':5,'wb':true,'dim':'8x8','bank':('rE,rH','','yE,yH','')}-x,x,x,x,x,x,x,x,x,x,x,x,x,x/x,x,x,x,x,x,x,x,x,x,x,x,x,x/x,x,x,x,x,x,x,x,x,x,x,x,x,x/x,x,x,yR,yN,yB,yQ,yK,yB,yN,yR,x,x,x/x,x,x,yP,yP,yP,yP,yP,yP,yP,yP,x,x,x/x,x,x,8,x,x,x/x,x,x,8,x,x,x/x,x,x,8,x,x,x/x,x,x,8,x,x,x/x,x,x,rP,rP,rP,rP,rP,rP,rP,rP,x,x,x/x,x,x,rR,rN,rB,rQ,rK,rB,rN,rR,x,x,x/x,x,x,x,x,x,x,x,x,x,x,x,x,x/x,x,x,x,x,x,x,x,x,x,x,x,x,x/x,x,x,x,x,x,x,x,x,x,x,x,x,x"]
+[White "ubdip"]
+[WhiteElo "1894"]
+[Black "GMYAZ"]
+[BlackElo "2173"]
+[Result "1/2-1/2"]
+[Termination "Threefold repetition"]
+[Site "www.chess.com/variants/seirawan-chess/game/62401310"]
+[Date "Sat Feb 24 2024 20:41:21 GMT+0000 (Coordinated Universal Time)"]
+[CurrentMove "35"]
+
+1. h5-h7 .. g10-g8
+2. h7xg8 .. Nj11-i9
+3. g5-g7 .. Ni9xg8
+4. Nj4-i6 .. Bf11-j7&@yH-f11
+5. Bi4-h5 .. h10-h9
+6. k5-k6 .. Bj7-i8
+7. d5-d6 .. Bi11-h10
+8. f5-f7 .. Ng8-i9
+9. Ne4-f6 .. Ne11-g10
+10. Bf4-i7&@rH-f4 .. O-O&@yE-h11
+11. O-O&@rE-h4 .. Ni9-h7
+12. Bh5-g6 .. Nh7xNf6
+13. e5xNf6 .. Bi8-j9
+14. d6-d7 .. Bh10-g9
+15. Bi7-j8 .. Bg9-h10
+16. Bj8-i7 .. Bh10-g9
+17. Bi7-j8 .. Bg9-h10
+18. Bj8-i7`;
+
+        // Initialize ffish
+        new Module().then(loadedModule => {
+            ffish = loadedModule;
+            isInitialized = true;
+            log('FFish initialized successfully');
+            log('Available variants: ' + ffish.variants());
+            updateStatus('FFish engine loaded successfully. Ready to convert PGN4 files.', 'success');
+        }).catch(error => {
+            log('Failed to initialize FFish: ' + error);
+            updateStatus('Failed to initialize chess engine. Please refresh the page.', 'error');
+        });
+        
+        function log(message) {
+            const debug = document.getElementById('debug');
+            debug.value += new Date().toISOString() + ': ' + message + '\\n';
+            debug.scrollTop = debug.scrollHeight;
+            console.log(message);
+        }
+        
+        function updateStatus(message, type = 'info') {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = 'status ' + type;
+            status.style.display = 'block';
+        }
+        
+        // Copy conversion functions from script.js
+        const SEIRAWAN_CASTLING = {
+            'O-O': 'O-O',
+            'O-O-O': 'O-O-O',
+            'h1-e1': 'O-O',
+            'h8-e8': 'O-O',
+            'a1-e1': 'O-O-O',
+            'a8-e8': 'O-O-O'
+        };
+
+        function coords(match, files, ranks) {
+            const file = match[1];
+            const rank = match[2];
+            
+            // Convert from larger board coordinates to 8x8 coordinates
+            // This assumes the larger board has padding around an 8x8 core
+            const fileDiff = files - 8;
+            const rankDiff = ranks - 8;
+            
+            // Calculate the offset (assuming symmetric padding)
+            const fileOffset = Math.floor(fileDiff / 2);
+            const rankOffset = Math.floor(rankDiff / 2);
+            
+            const newFile = String.fromCharCode(file.charCodeAt(0) - fileOffset);
+            const newRank = parseInt(rank) - rankOffset;
+            
+            return newFile + newRank;
+        }
+
+        function extractBoardDimensions(startFen4) {
+            if (!startFen4) return { files: 8, ranks: 8 };
+            
+            // Extract FEN part (after the last '-')
+            const fenParts = startFen4.split('-');
+            const fenPart = fenParts[fenParts.length - 1];
+            
+            // Count ranks and files
+            const ranks = fenPart.split('/');
+            const numRanks = ranks.length;
+            
+            let numFiles = 8;
+            if (ranks.length > 0) {
+                // Count files in first rank (split by comma)
+                const files = ranks[0].split(',');
+                numFiles = files.length;
+            }
+            
+            // For Seirawan chess specifically, the board appears to be larger in the FEN
+            // but the actual game coordinates suggest a smaller playable area
+            // Based on analysis: coordinates go up to k (11th file) and rank 11
+            if (numFiles > 11 || numRanks > 11) {
+                // Likely a padded board, use the coordinate analysis
+                return { files: 11, ranks: 11 };
+            }
+            
+            return { files: numFiles, ranks: numRanks };
+        }
+
+        function gating(match) {
+            const move = match[1];
+            const gatePieceColor = match[2]; // y or r 
+            const gatePiece = match[3]; // H, E, etc.
+            const square = match[4];
+            
+            if (SEIRAWAN_CASTLING[move]) {
+                return SEIRAWAN_CASTLING[move] + '/' + gatePiece + square;
+            } else {
+                return move + '/' + gatePiece;
+            }
+        }
+        
+        function testConvert(pgn4Text, overrideVariant) {
+            if (!isInitialized) {
+                throw new Error('Chess engine not initialized');
+            }
+
+            log('Starting conversion...');
+            log('Input PGN4 length: ' + pgn4Text.length);
+
+            // Clean up PGN4 text
+            let pgn4 = pgn4Text;
+            
+            // Remove ' .. ' patterns
+            pgn4 = pgn4.replace(/ \.\. /g, ' ');
+            log('After removing "..": patterns');
+            
+            // Handle captures - remove piece type after 'x'
+            pgn4 = pgn4.replace(/x[A-Z]([a-l][0-9]{1,2})/g, 'x$1');
+            
+            // Extract board dimensions from StartFen4 if present
+            let boardDimensions = { files: 8, ranks: 8 };
+            const startFenMatch = pgn4.match(/\[StartFen4 "([^"]+)"\]/);
+            if (startFenMatch) {
+                boardDimensions = extractBoardDimensions(startFenMatch[1]);
+                log('Detected board dimensions: ' + boardDimensions.files + 'x' + boardDimensions.ranks);
+            }
+            
+            // Convert dash notation to UCI format (e.g., h5-h7 -> h5h7)
+            pgn4 = pgn4.replace(/([a-l][0-9]{1,2})-([a-l][0-9]{1,2})/g, '$1$2');
+            log('After dash conversion');
+            
+            // Apply coordinate transformation for non-standard board sizes - DISABLED FOR NOW
+            // if (boardDimensions.files !== 8 || boardDimensions.ranks !== 8) {
+            //     pgn4 = pgn4.replace(/([a-l])([0-9]{1,2})/g, (match, file, rank) => {
+            //         return coords([match, file, rank], boardDimensions.files, boardDimensions.ranks);
+            //     });
+            //     log('After coordinate conversion');
+            // }
+            
+            // Handle gating moves
+            pgn4 = pgn4.replace(/([^ ]*)&@([a-z])([A-Z])-([a-l][0-9]{1,2})/g, (match, move, gatePieceColor, gatePiece, square) => {
+                return gating([match, move, gatePieceColor, gatePiece, square]);
+            });
+            log('After gating conversion');
+
+            let pgn = '';
+            let variant = overrideVariant || 'chess';
+            let startFen = null;
+            
+            const lines = pgn4.split(/\\r?\\n/);
+            log('Processing ' + lines.length + ' lines');
+            
+            for (const line of lines) {
+                if (line.startsWith('[')) {
+                    if (line.startsWith('[Variant')) {
+                        continue; // Skip original variant header
+                    }
+                    
+                    if (line.startsWith('[Site')) {
+                        if (!overrideVariant) {
+                            // Extract variant from Site header
+                            const variantMatch = line.match(/variants\/([^/\]"]*)/);
+                            if (variantMatch) {
+                                variant = variantMatch[1].replace("-chess", "").replace(/-/g, '');
+                                const availableVariants = ffish.variants().split(' ');
+                                log('Detected variant: ' + variant);
+                                if (!availableVariants.includes(variant)) {
+                                    log('Unsupported variant: ' + variant + ', defaulting to chess');
+                                    variant = 'chess';
+                                }
+                            }
+                        }
+                        
+                        // Set start FEN for the variant
+                        startFen = ffish.startingFen(variant);
+                        log('Using variant: ' + variant);
+                        log('Start FEN: ' + startFen);
+                        
+                        // Add variant header
+                        pgn += '[Variant "' + variant.charAt(0).toUpperCase() + variant.slice(1) + '"]' + '\\n';
+                        pgn += line + '\\n';
+                    } else {
+                        pgn += line + '\\n';
+                    }
+                } else if (line.trim()) {
+                    // For now, just keep the move lines as-is for basic testing
+                    pgn += line + '\\n';
+                } else {
+                    pgn += line + '\\n';
+                }
+            }
+            
+            log('Conversion completed');
+            return pgn;
+        }
+        
+        // Global functions for the interface
+        window.loadSample = function() {
+            document.getElementById('input').value = testPgn4Sample;
+            updateStatus('Loaded sample data', 'info');
+        };
+        
+        window.clearInput = function() {
+            document.getElementById('input').value = '';
+            document.getElementById('output').value = '';
+            document.getElementById('debug').value = '';
+            updateStatus('Cleared all data', 'info');
+        };
+        
+        window.testConversion = function() {
+            const input = document.getElementById('input').value.trim();
+            if (!input) {
+                updateStatus('Please provide PGN4 input', 'error');
+                return;
+            }
+            
+            const variant = document.getElementById('variant-select').value || null;
+            
+            try {
+                // Use 11x11 board dimensions for Seirawan chess example
+                const result = testConvert(input, variant, 11, 11);
+                document.getElementById('output').value = result;
+                updateStatus('Conversion completed successfully!', 'success');
+            } catch (error) {
+                log('Conversion error: ' + error.message);
+                updateStatus('Conversion failed: ' + error.message, 'error');
+            }
+        };
+        
+        window.runUnitTests = function() {
+            // Import and run the test suite
+            import('./test_suite.js').then(module => {
+                if (module.runTests) {
+                    module.runTests();
+                    updateStatus('Unit tests completed - check console', 'info');
+                }
+            }).catch(error => {
+                log('Test error: ' + error.message);
+                updateStatus('Test failed: ' + error.message, 'error');
+            });
+        };
+    </script>
+</body>
+</html>
