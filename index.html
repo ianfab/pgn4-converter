@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PGN4 Converter</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>PGN4 to PGN Converter</h1>
+            <p>Convert PGN4 format to standard PGN using Fairy-Stockfish</p>
+        </header>
+
+        <main>
+            <section class="input-section">
+                <h2>Input PGN4</h2>
+                
+                <div class="input-options">
+                    <div class="option">
+                        <label for="file-input">Upload PGN4 file:</label>
+                        <input type="file" id="file-input" accept=".pgn,.pgn4,.txt">
+                    </div>
+                    
+                    <div class="option">
+                        <label for="paste-input">Or paste PGN4 text:</label>
+                        <textarea id="paste-input" placeholder="Paste your PGN4 content here..." rows="10"></textarea>
+                    </div>
+                </div>
+
+                <div class="controls">
+                    <label for="variant-select">Override variant (optional):</label>
+                    <select id="variant-select">
+                        <option value="">Auto-detect from Site header</option>
+                    </select>
+                    
+                    <div class="board-size">
+                        <label>
+                            Files: <input type="number" id="files-input" value="8" min="1" max="20">
+                        </label>
+                        <label>
+                            Ranks: <input type="number" id="ranks-input" value="8" min="1" max="20">
+                        </label>
+                    </div>
+                </div>
+
+                <button id="convert-btn" class="primary-btn">Convert to PGN</button>
+            </section>
+
+            <section class="output-section">
+                <h2>Output PGN</h2>
+                <textarea id="output" readonly placeholder="Converted PGN will appear here..." rows="15"></textarea>
+                
+                <div class="output-controls">
+                    <button id="copy-btn" class="secondary-btn">Copy to Clipboard</button>
+                    <button id="download-btn" class="secondary-btn">Download as File</button>
+                </div>
+            </section>
+
+            <section class="status-section">
+                <div id="status" class="status-info"></div>
+                <div id="error" class="status-error" style="display: none;"></div>
+            </section>
+        </main>
+    </div>
+
+    <script type="module" src="script.js"></script>
+</body>
+</html>
