@@ -62,8 +62,7 @@
     
     <div class="test-section">
         <h2>Test Sample Data</h2>
-        <button onclick="loadSeirawanSample()">Load Seirawan Sample</button>
-        <button onclick="loadStandardSample()">Load Standard Chess Sample</button>
+        <button onclick="loadSample()">Load Sample</button>
         <button onclick="clearInput()">Clear</button>
     </div>
     
@@ -105,8 +104,8 @@
         let ffish = null;
         let isInitialized = false;
         
-        // Test data
-        const seirawanTestPgn4 = `[GameNr "62401310"]
+        // Test data (consolidated)
+        const testPgn4Sample = `[GameNr "62401310"]
 [TimeControl "5+2"]
 [Variant "FFA"]
 [RuleVariants "EnPassant Play4Mate PromoteTo=BEHNQR SeirawanSetup"]
@@ -139,14 +138,6 @@
 16. Bj8-i7 .. Bh10-g9
 17. Bi7-j8 .. Bg9-h10
 18. Bj8-i7`;
-
-        const standardTestPgn4 = `[Event "Test Game"]
-[Site "https://www.pychess.org/variants/chess"]
-[Date "2023.12.25"]
-[White "Player1"]
-[Black "Player2"]
-
-1. e2e4 e7e5 2. g1f3 b8c6 3. f1b5`;
 
         // Initialize ffish
         new Module().then(loadedModule => {
@@ -341,14 +332,9 @@
         }
         
         // Global functions for the interface
-        window.loadSeirawanSample = function() {
-            document.getElementById('input').value = seirawanTestPgn4;
-            updateStatus('Loaded Seirawan sample data', 'info');
-        };
-        
-        window.loadStandardSample = function() {
-            document.getElementById('input').value = standardTestPgn4;
-            updateStatus('Loaded standard chess sample data', 'info');
+        window.loadSample = function() {
+            document.getElementById('input').value = testPgn4Sample;
+            updateStatus('Loaded sample data', 'info');
         };
         
         window.clearInput = function() {
@@ -368,7 +354,8 @@
             const variant = document.getElementById('variant-select').value || null;
             
             try {
-                const result = testConvert(input, variant);
+                // Use 11x11 board dimensions for Seirawan chess example
+                const result = testConvert(input, variant, 11, 11);
                 document.getElementById('output').value = result;
                 updateStatus('Conversion completed successfully!', 'success');
             } catch (error) {

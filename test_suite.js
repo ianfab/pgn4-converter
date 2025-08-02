@@ -1,8 +1,8 @@
 // Comprehensive test suite for PGN4 conversion
 // This tests the conversion functions without requiring the full web interface
 
-// Test data from the issue
-const seirawanTestPgn4 = `[GameNr "62401310"]
+// Test data from the issue - Seirawan chess sample
+const testPgn4Sample = `[GameNr "62401310"]
 [TimeControl "5+2"]
 [Variant "FFA"]
 [RuleVariants "EnPassant Play4Mate PromoteTo=BEHNQR SeirawanSetup"]
@@ -36,16 +36,7 @@ const seirawanTestPgn4 = `[GameNr "62401310"]
 17. Bi7-j8 .. Bg9-h10
 18. Bj8-i7`;
 
-// Simple test for regular chess
-const standardTestPgn4 = `[Event "Test Game"]
-[Site "https://www.pychess.org/variants/chess"]
-[Date "2023.12.25"]
-[White "Player1"]
-[Black "Player2"]
-
-1. e2e4 e7e5 2. g1f3 b8c6 3. f1b5`;
-
-// Copy helper functions from script.js for testing
+// Copy helper functions from script.js for testing - these match the Python reference implementation
 const SEIRAWAN_CASTLING = {
     'O-O': 'O-O',
     'O-O-O': 'O-O-O',
@@ -55,48 +46,21 @@ const SEIRAWAN_CASTLING = {
     'a8-e8': 'O-O-O'
 };
 
+// Coordinate conversion function - equivalent to Python coords()
 function coords(match, files, ranks) {
     const file = match[1];
     const rank = match[2];
+    // Direct translation from Python: chr(ord(file) - (11 - files)) + str(int(rank) - (11 - ranks))
     const newFile = String.fromCharCode(file.charCodeAt(0) - (11 - files));
     const newRank = parseInt(rank) - (11 - ranks);
     return newFile + newRank;
 }
 
-function extractBoardDimensions(startFen4) {
-    if (!startFen4) return { files: 8, ranks: 8 };
-    
-    // Extract FEN part (after the last '-')
-    const fenParts = startFen4.split('-');
-    const fenPart = fenParts[fenParts.length - 1];
-    
-    // Count ranks and files
-    const ranks = fenPart.split('/');
-    const numRanks = ranks.length;
-    
-    let numFiles = 8;
-    if (ranks.length > 0) {
-        // Count files in first rank (split by comma)
-        const files = ranks[0].split(',');
-        numFiles = files.length;
-    }
-    
-    // For Seirawan chess specifically, the board appears to be larger in the FEN
-    // but the actual game coordinates suggest a smaller playable area
-    // Based on analysis: coordinates go up to k (11th file) and rank 11
-    if (numFiles > 11 || numRanks > 11) {
-        // Likely a padded board, use the coordinate analysis
-        return { files: 11, ranks: 11 };
-    }
-    
-    return { files: numFiles, ranks: numRanks };
-}
-
+// Gating move conversion - equivalent to Python gating()
 function gating(match) {
     const move = match[1];
-    const gatePieceColor = match[2]; // y or r 
-    const gatePiece = match[3]; // H, E, etc.
-    const square = match[4];
+    const gatePiece = match[2]; // The piece letter (H, E, etc)
+    const square = match[3];    // The square (f11, h11, etc)
     
     if (SEIRAWAN_CASTLING[move]) {
         return SEIRAWAN_CASTLING[move] + '/' + gatePiece + square;
@@ -109,12 +73,14 @@ function gating(match) {
 function testCoordinateConversion() {
     console.log('=== Testing Coordinate Conversion ===');
     
-    // Test with 11x11 board (Seirawan)
+    // Test with 11x11 board -> 8x8 board conversion
+    // Python formula: chr(ord(file) - (11 - files)) + str(int(rank) - (11 - ranks))
+    // For 11x11 -> 8x8: chr(ord(file) - 3) + str(int(rank) - 3)
     const tests = [
-        { input: ['d4', 'd', '4'], files: 11, ranks: 11, expected: 'a1' },
-        { input: ['h5', 'h', '5'], files: 11, ranks: 11, expected: 'e2' },
-        { input: ['k6', 'k', '6'], files: 11, ranks: 11, expected: 'h3' },
-        { input: ['j11', 'j', '11'], files: 11, ranks: 11, expected: 'g8' },
+        { input: ['d4', 'd', '4'], files: 8, ranks: 8, expected: 'a1' }, // d(100) - 3 = a(97), 4 - 3 = 1
+        { input: ['h5', 'h', '5'], files: 8, ranks: 8, expected: 'e2' }, // h(104) - 3 = e(101), 5 - 3 = 2
+        { input: ['k6', 'k', '6'], files: 8, ranks: 8, expected: 'h3' }, // k(107) - 3 = h(104), 6 - 3 = 3
+        { input: ['j11', 'j', '11'], files: 8, ranks: 8, expected: 'g8' }, // j(106) - 3 = g(103), 11 - 3 = 8
     ];
     
     tests.forEach(test => {
@@ -127,9 +93,9 @@ function testGatingConversion() {
     console.log('\n=== Testing Gating Conversion ===');
     
     const tests = [
-        { input: ['Bf11-j7&@yH-f11', 'Bf11-j7', 'y', 'H', 'f11'], expected: 'Bf11-j7/H' },
-        { input: ['O-O&@yE-h11', 'O-O', 'y', 'E', 'h11'], expected: 'O-O/Eh11' },
-        { input: ['O-O&@rE-h4', 'O-O', 'r', 'E', 'h4'], expected: 'O-O/Eh4' },
+        { input: ['Bf11-j7&@yH-f11', 'Bf11-j7', 'H', 'f11'], expected: 'Bf11-j7/H' },
+        { input: ['O-O&@yE-h11', 'O-O', 'E', 'h11'], expected: 'O-O/Eh11' },
+        { input: ['O-O&@rE-h4', 'O-O', 'E', 'h4'], expected: 'O-O/Eh4' },
     ];
     
     tests.forEach(test => {
@@ -141,10 +107,8 @@ function testGatingConversion() {
 function testBoardDimensionExtraction() {
     console.log('\n=== Testing Board Dimension Extraction ===');
     
-    const startFen4 = "R-0,1,0,1-1,1,1,1-1,1,1,1-0,0,0,0-0-{'seirawanDrops':(('d4','e4','f4','g4','h4','i4','j4','k4'),(),('d11','e11','f11','g11','h11','i11','j11','k11'),(),()),'pawnBaseRank':5,'wb':true,'dim':'8x8','bank':('rE,rH','','yE,yH','')}-x,x,x,x,x,x,x,x,x,x,x,x,x,x/x,x,x,x,x,x,x,x,x,x,x,x,x,x/x,x,x,x,x,x,x,x,x,x,x,x,x,x/x,x,x,yR,yN,yB,yQ,yK,yB,yN,yR,x,x,x/x,x,x,yP,yP,yP,yP,yP,yP,yP,yP,x,x,x/x,x,x,8,x,x,x/x,x,x,8,x,x,x/x,x,x,8,x,x,x/x,x,x,8,x,x,x/x,x,x,rP,rP,rP,rP,rP,rP,rP,rP,x,x,x/x,x,x,rR,rN,rB,rQ,rK,rB,rN,rR,x,x,x/x,x,x,x,x,x,x,x,x,x,x,x,x,x/x,x,x,x,x,x,x,x,x,x,x,x,x,x/x,x,x,x,x,x,x,x,x,x,x,x,x,x";
-    
-    const dimensions = extractBoardDimensions(startFen4);
-    console.log(`Extracted dimensions: ${dimensions.files}x${dimensions.ranks}`);
+    // No longer needed - we use fixed parameters from command line like Python version
+    console.log('Board dimensions are now passed as parameters (--files, --ranks) like Python version');
 }
 
 function testVariantExtraction() {
@@ -171,17 +135,23 @@ function testPGN4Transformations() {
     let testText = "1. h5-h7 .. g10-g8 Bf11-j7&@yH-f11 O-O&@yE-h11";
     console.log(`Original: ${testText}`);
     
-    // Remove ' .. ' patterns
+    // Step 1: Remove ' .. ' patterns
     testText = testText.replace(/ \.\. /g, ' ');
     console.log(`After removing '..': ${testText}`);
     
-    // Convert dash notation to UCI format
-    testText = testText.replace(/([a-l][0-9]{1,2})-([a-l][0-9]{1,2})/g, '$1$2');
-    console.log(`After dash conversion: ${testText}`);
+    // Step 2: Handle captures - remove piece type after 'x'
+    testText = testText.replace(/x[A-Z]([a-l][0-9]{1,2})/g, 'x$1');
+    console.log(`After capture cleanup: ${testText}`);
     
-    // Handle gating moves
-    testText = testText.replace(/([^ ]*)&@([a-z])([A-Z])-([a-l][0-9]{1,2})/g, (match, move, gatePieceColor, gatePiece, square) => {
-        return gating([match, move, gatePieceColor, gatePiece, square]);
+    // Step 3: Convert coordinates (11x11 board to 8x8)
+    testText = testText.replace(/([a-l])([0-9]{1,2})/g, (match, file, rank) => {
+        return coords([match, file, rank], 8, 8);
+    });
+    console.log(`After coordinate conversion: ${testText}`);
+    
+    // Step 4: Handle gating moves - updated regex to match Python exactly
+    testText = testText.replace(/([^ ]*)&@[a-z]([A-Z])-([a-l][0-9]{1,2})/g, (match, move, gatePiece, square) => {
+        return gating([match, move, gatePiece, square]);
     });
     console.log(`After gating conversion: ${testText}`);
 }
@@ -222,8 +192,7 @@ function runTests() {
 
 // Export test data for browser testing
 if (typeof window !== 'undefined') {
-    window.seirawanTestPgn4 = seirawanTestPgn4;
-    window.standardTestPgn4 = standardTestPgn4;
+    window.testPgn4Sample = testPgn4Sample;
     window.runTests = runTests;
 }
 
