@@ -16,9 +16,21 @@ const SEIRAWAN_CASTLING = {
 // Initialize ffish
 new Module().then(loadedModule => {
     ffish = loadedModule;
-    isInitialized = true;
-    console.log('FFish initialized successfully');
+    console.log('FFish module loaded successfully');
     
+    // Test basic functionality first
+    console.log('Available ffish methods:', Object.getOwnPropertyNames(ffish).filter(name => typeof ffish[name] === 'function'));
+
+    // Initialize with a test board to ensure full functionality
+    try {
+        const testBoard = new ffish.Board('chess');
+        testBoard.delete();
+    } catch (error) {
+        console.error('Error creating test board:', error);
+    }
+    
+    isInitialized = true;
+
     // Populate variant dropdown
     populateVariantDropdown();
     
@@ -108,7 +120,7 @@ function pgn4ToPgn(pgn4Text, overrideVariant, files, ranks) {
                         variant = variantMatch[1].replace("-chess", "").replace(/-/g, '');
                         const availableVariants = ffish.variants().split(' ');
                         if (!availableVariants.includes(variant)) {
-                            throw new Error(`Unsupported variant: ${variant}`);
+                            throw new Error(`Unsupported variant: ${variant}, available variants are: ${availableVariants.join(', ')}`);
                         }
                         startFen = ffish.startingFen(variant);
                     }
@@ -227,7 +239,15 @@ function populateVariantDropdown() {
     if (!isInitialized) return;
     
     const select = document.getElementById('variant-select');
-    const variants = ffish.variants().split(' ');
+    const variantsString = ffish.variants();
+      
+    if (!variantsString || variantsString.trim() === '') {
+        console.error('No variants available from ffish.variants()');
+        return;
+    }
+    
+    const variants = variantsString.split(' ').filter(v => v.trim() !== '');
+    console.log('Parsed variants:', variants);
     
     // Clear existing options except the first one
     while (select.children.length > 1) {
