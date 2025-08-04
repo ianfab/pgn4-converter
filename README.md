@@ -81,11 +81,23 @@ Visit the live application: [PGN4 Converter on Vercel](https://pgn4-converter.ve
    ```bash
    npm install
    ```
+   *Note: The postinstall script will automatically copy the required files from node_modules to lib/*
 3. Start development server:
    ```bash
    npm run dev
    ```
 4. Open http://localhost:3000
+
+### Manual Setup (if needed)
+
+If the automatic setup doesn't work, you can manually copy the required files:
+```bash
+npm run setup
+```
+
+This copies:
+- `ffish.js` to `lib/ffish.js`
+- `ffish.wasm` to the root directory
 
 ### Testing
 

@@ -9,3 +9,7 @@ yarn-error.log*
 .env.production.local
 dist/
 .vercel
+
+# Generated files (copied from node_modules during build)
+ffish.wasm
+lib/

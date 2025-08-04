@@ -1,4 +1,4 @@
-import Module from './node_modules/ffish-es6/ffish.js';
+import Module from './lib/ffish.js';
 
 let ffish = null;
 let isInitialized = false;

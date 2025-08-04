@@ -5,10 +5,13 @@
   "main": "index.html",
   "type": "module",
   "scripts": {
-    "dev": "serve .",
-    "build": "echo 'No build step needed for static site'",
-    "start": "serve .",
-    "test": "node test_validation.js"
+    "setup": "npm run copy-assets",
+    "copy-assets": "mkdir -p lib && cp node_modules/ffish-es6/ffish.js lib/ && cp node_modules/ffish-es6/ffish.wasm .",
+    "dev": "npm run setup && serve .",
+    "build": "npm run copy-assets && echo 'Static site ready for deployment'",
+    "start": "npm run setup && serve .",
+    "test": "npm run setup && node test_validation.js",
+    "postinstall": "npm run copy-assets"
   },
   "dependencies": {
     "ffish-es6": "^0.7.8"

@@ -27,6 +27,9 @@ jobs:
     - name: Install dependencies
       run: npm ci
       
+    - name: Setup WASM files
+      run: npm run setup
+      
     - name: Run unit tests
       run: |
         echo "Running basic pattern validation tests..."
@@ -129,6 +132,9 @@ jobs:
         
     - name: Install dependencies
       run: npm ci
+      
+    - name: Setup WASM files
+      run: npm run setup
       
     - name: Run ESLint (if configured)
       run: |
