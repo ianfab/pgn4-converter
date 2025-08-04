@@ -58,10 +58,9 @@ function coords(match, files, ranks) {
     const file = match[1];
     const rank = match[2];
     
-    // Direct translation from Python: chr(ord(file) - (11 - files)) + str(int(rank) - (11 - ranks))
-    const newFile = String.fromCharCode(file.charCodeAt(0) - (11 - files));
-    const newRank = parseInt(rank) - (11 - ranks);
-    
+    const newFile = String.fromCharCode(file.charCodeAt(0) - (14 - files) / 2);
+    const newRank = parseInt(rank) - (14 - ranks) / 2;
+
     return newFile + newRank;
 }
 
@@ -114,19 +113,40 @@ function pgn4ToPgn(pgn4Text, overrideVariant, userFiles, userRanks) {
     let files = userFiles;  // User override or will be auto-detected
     let ranks = userRanks;  // User override or will be auto-detected
     
-    if (overrideVariant) {
-        startFen = ffish.startingFen(overrideVariant);
+    // First pass: extract variant from PGN if no override is provided
+    if (!overrideVariant && (!userFiles || !userRanks)) {
+        const lines = pgn4Text.split(/\r?\n/);
+        for (const line of lines) {
+            if (line.startsWith('[Site')) {
+                const variantMatch = line.match(/variants\/([^/\]"]*)/);
+                if (variantMatch) {
+                    variant = variantMatch[1].replace("-chess", "").replace(/-/g, '');
+                    const availableVariants = ffish.variants().split(' ');
+                    if (availableVariants.includes(variant)) {
+                        console.log(`Detected variant from PGN: ${variant}`);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    
+    // Calculate board dimensions before coordinate conversion
+    if (overrideVariant || variant) {
+        const targetVariant = overrideVariant || variant;
+        startFen = ffish.startingFen(targetVariant);
         // Auto-detect dimensions if user didn't specify
         if (!userFiles || !userRanks) {
-            const autoDimensions = getBoardDimensions(overrideVariant);
+            const autoDimensions = getBoardDimensions(targetVariant);
             files = userFiles || autoDimensions.files;
             ranks = userRanks || autoDimensions.ranks;
-            console.log(`Auto-detected dimensions for ${overrideVariant}: ${files}x${ranks}`);
+            console.log(`Auto-detected dimensions for ${targetVariant}: ${files}x${ranks}`);
         }
     } else if (!files || !ranks) {
         // Default to 8x8 if no variant and no user input
         files = files || 8;
         ranks = ranks || 8;
+        console.log(`Using default dimensions: ${files}x${ranks}`);
     }
     
     // Remove ' .. ' patterns
@@ -157,28 +177,20 @@ function pgn4ToPgn(pgn4Text, overrideVariant, userFiles, userRanks) {
             
             if (line.startsWith('[Site')) {
                 if (!overrideVariant) {
-                    // Extract variant from Site header
+                    // Extract variant from Site header (already done in first pass, but validate)
                     const variantMatch = line.match(/variants\/([^/\]"]*)/);
                     if (variantMatch) {
-                        variant = variantMatch[1].replace("-chess", "").replace(/-/g, '');
-                        const availableVariants = ffish.variants().split(' ');
-                        if (!availableVariants.includes(variant)) {
-                            throw new Error(`Unsupported variant: ${variant}, available variants are: ${availableVariants.join(', ')}`);
-                        }
-                        startFen = ffish.startingFen(variant);
-                        
-                        // Auto-detect dimensions if user didn't specify
-                        if (!userFiles || !userRanks) {
-                            const autoDimensions = getBoardDimensions(variant);
-                            files = userFiles || autoDimensions.files;
-                            ranks = userRanks || autoDimensions.ranks;
-                            console.log(`Auto-detected dimensions for ${variant}: ${files}x${ranks}`);
+                        const detectedVariant = variantMatch[1].replace("-chess", "").replace(/-/g, '');
+                        if (detectedVariant !== variant) {
+                            variant = detectedVariant;
+                            const availableVariants = ffish.variants().split(' ');
+                            if (!availableVariants.includes(variant)) {
+                                throw new Error(`Unsupported variant: ${variant}, available variants are: ${availableVariants.join(', ')}`);
+                            }
+                            startFen = ffish.startingFen(variant);
+                            console.log(`Confirmed variant from Site header: ${variant}`);
                         }
                     }
-                } else if (!files || !ranks) {
-                    // Default to 8x8 if no variant detected and no user input
-                    files = files || 8;
-                    ranks = ranks || 8;
                 }
                 
                 // Match Python behavior: replace Site line with Variant line
