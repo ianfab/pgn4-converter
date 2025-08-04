@@ -20,10 +20,16 @@ new Module().then(loadedModule => {
     
     // Test basic functionality first
     console.log('Available ffish methods:', Object.getOwnPropertyNames(ffish).filter(name => typeof ffish[name] === 'function'));
+    console.log('Available ffish properties:', Object.getOwnPropertyNames(ffish));
+    console.log('ffish.Notation:', ffish.Notation);
 
     // Initialize with a test board to ensure full functionality
     try {
         const testBoard = new ffish.Board('chess');
+        console.log('Test board created, testing notation conversion...');
+        const testMove = 'e2e4';
+        const sanMove = testBoard.sanMove(testMove);
+        console.log(`UCI ${testMove} converts to SAN: ${sanMove}`);
         testBoard.delete();
     } catch (error) {
         console.error('Error creating test board:', error);
@@ -33,6 +39,9 @@ new Module().then(loadedModule => {
 
     // Populate variant dropdown
     populateVariantDropdown();
+    
+    // Initialize dimension placeholders
+    updateDimensionPlaceholders(null);
     
     // Update status
     updateStatus('FFish engine loaded successfully. Ready to convert PGN4 files.');
@@ -70,15 +79,55 @@ function gating(match) {
     }
 }
 
+// Auto-detect board dimensions from FEN
+function getBoardDimensions(variant) {
+    try {
+        const startFen = ffish.startingFen(variant);
+        const fenBoard = startFen.split(" ")[0];
+        const ranks = fenBoard.split("/").length;
+        const lastRank = fenBoard.split("/")[0].replace(/[^0-9a-z*]/gi, "");
+        let files = lastRank.length;
+
+        for (const match of lastRank.matchAll(/\d+/g)) {
+            files += parseInt(match[0]) - match[0].length;
+        }
+
+        return { files, ranks };
+    } catch (error) {
+        console.warn(`Could not auto-detect dimensions for variant ${variant}:`, error);
+        return { files: 8, ranks: 8 }; // Default to 8x8
+    }
+}
+
 // Main conversion function - equivalent to Python pgn4_to_pgn()
-// Main conversion function - equivalent to Python pgn4_to_pgn()
-function pgn4ToPgn(pgn4Text, overrideVariant, files, ranks) {
+function pgn4ToPgn(pgn4Text, overrideVariant, userFiles, userRanks) {
     if (!isInitialized) {
         throw new Error('Chess engine not initialized');
     }
 
     // Clean up PGN4 text - equivalent to Python regex substitutions
     let pgn4 = pgn4Text;
+    
+    let pgn = '';
+    let variant = overrideVariant;
+    let startFen = null;
+    let files = userFiles;  // User override or will be auto-detected
+    let ranks = userRanks;  // User override or will be auto-detected
+    
+    if (overrideVariant) {
+        startFen = ffish.startingFen(overrideVariant);
+        // Auto-detect dimensions if user didn't specify
+        if (!userFiles || !userRanks) {
+            const autoDimensions = getBoardDimensions(overrideVariant);
+            files = userFiles || autoDimensions.files;
+            ranks = userRanks || autoDimensions.ranks;
+            console.log(`Auto-detected dimensions for ${overrideVariant}: ${files}x${ranks}`);
+        }
+    } else if (!files || !ranks) {
+        // Default to 8x8 if no variant and no user input
+        files = files || 8;
+        ranks = ranks || 8;
+    }
     
     // Remove ' .. ' patterns
     pgn4 = pgn4.replace(/ \.\. /g, ' ');
@@ -95,19 +144,13 @@ function pgn4ToPgn(pgn4Text, overrideVariant, files, ranks) {
     pgn4 = pgn4.replace(/([^ ]*)&@[a-z]([A-Z])-([a-l][0-9]{1,2})/g, (match, move, gatePiece, square) => {
         return gating([match, move, gatePiece, square]);
     });
-
-    let pgn = '';
-    let variant = overrideVariant;
-    let startFen = null;
-    
-    if (overrideVariant) {
-        startFen = ffish.startingFen(overrideVariant);
-    }
     
     const lines = pgn4.split(/\r?\n/);
+    let moves = []; // Track moves across the entire game
     
     for (const line of lines) {
         if (line.startsWith('[')) {
+            moves = []; // Reset moves for new game
             if (line.startsWith('[Variant')) {
                 continue; // Skip original variant header
             }
@@ -123,114 +166,113 @@ function pgn4ToPgn(pgn4Text, overrideVariant, files, ranks) {
                             throw new Error(`Unsupported variant: ${variant}, available variants are: ${availableVariants.join(', ')}`);
                         }
                         startFen = ffish.startingFen(variant);
+                        
+                        // Auto-detect dimensions if user didn't specify
+                        if (!userFiles || !userRanks) {
+                            const autoDimensions = getBoardDimensions(variant);
+                            files = userFiles || autoDimensions.files;
+                            ranks = userRanks || autoDimensions.ranks;
+                            console.log(`Auto-detected dimensions for ${variant}: ${files}x${ranks}`);
+                        }
                     }
+                } else if (!files || !ranks) {
+                    // Default to 8x8 if no variant detected and no user input
+                    files = files || 8;
+                    ranks = ranks || 8;
                 }
                 
-                // Add variant header
+                // Match Python behavior: replace Site line with Variant line
                 pgn += `[Variant "${variant.charAt(0).toUpperCase() + variant.slice(1)}"]\n`;
-                pgn += line + '\n';
             } else {
                 pgn += line + '\n';
             }
-        } else if (line.trim()) {
-            // Process move line
-            const processedLine = processMoveLine(line, variant, startFen);
-            pgn += processedLine + '\n';
         } else {
-            pgn += line + '\n';
+            // Process move line using Python logic
+            const processedLine = processMoveLine(line, variant, startFen, moves);
+            pgn += processedLine + '\n';
         }
     }
     
     return pgn;
 }
 
-// Process a line containing moves
-function processMoveLine(line, variant, startFen) {
+// Process a line containing moves - equivalent to Python logic
+function processMoveLine(line, variant, startFen, moves) {
     const parts = line.split(/\s+/);
-    const processedParts = [];
-    const moves = [];
     
     for (let i = 0; i < parts.length; i++) {
         let move = parts[i].trim();
         
         if (!move) continue;
         
-        // Skip move numbers, timestamps, and game end markers
-        if (/^\d+\./.test(move) || move === 'T' || move === 'R' || move === 'S' || move === '*' || 
-            move === '1-0' || move === '0-1' || move === '1/2-1/2') {
-            processedParts.push(move);
+        // Skip move numbers and timestamps (equivalent to Python's isdigit() check and T,R,S)
+        if (/^\d/.test(move) || move === 'T' || move === 'R' || move === 'S') {
             continue;
         }
         
-        // Clean weird game end markers
+        // Fix weird game end markers (equivalent to Python's rstrip('S').replace('+#', '#'))
         move = move.replace(/S$/, '').replace(/\+#/, '#');
         
         if (!move) continue;
         
         try {
-            // Create a board with current position
+            // Get current FEN after applying all previous moves (equivalent to pyffish.get_fen)
             const board = new ffish.Board(variant, startFen);
-            
-            // Apply all previous moves
             for (const prevMove of moves) {
                 board.push(prevMove);
             }
+            const currentFen = board.fen();
             
-            // Get legal moves in UCI format
-            const legalMovesUci = board.legalMoves().split(' ').filter(m => m);
+            // Get legal moves (equivalent to pyffish.legal_moves)
+            const legalMoves = board.legalMoves().split(' ').filter(m => m);
             
-            // First try as UCI move (most likely for PGN4 format)
-            if (legalMovesUci.includes(move)) {
-                moves.push(move);
-                const sanMove = board.sanMove(move);
-                processedParts.push(sanMove);
-                board.delete();
-                continue;
-            }
-            
-            // Then try to push the move as SAN notation
-            try {
-                board.pushSan(move);
-                const moveStack = board.moveStack().split(' ');
-                const uciMove = moveStack[moveStack.length - 1];
-                moves.push(uciMove);
-                processedParts.push(move);
-                board.delete();
-                continue;
-            } catch (e) {
-                // If that fails, try LAN notation
-            }
-            
-            // Try to match as LAN notation
-            let found = false;
-            for (const uciMove of legalMovesUci) {
+            // Create LAN to UCI mapping (equivalent to Python's lan_legals dict comprehension)
+            const lanLegals = {};
+            for (const uciMove of legalMoves) {
                 try {
-                    const lanMove = board.sanMove(uciMove, 0); // 0 = LAN notation
-                    if (lanMove === move) {
-                        moves.push(uciMove);
-                        const sanMove = board.sanMove(uciMove);
-                        processedParts.push(sanMove);
-                        found = true;
-                        break;
+                    // Try to get LAN notation - if ffish.Notation is available, use it, otherwise try with parameter
+                    let lanMove;
+                    if (typeof ffish.Notation !== 'undefined' && ffish.Notation.LAN !== 'undefined') {
+                        lanMove = board.sanMove(uciMove, ffish.Notation.LAN);
+                    } else {
+                        // Try different notation parameters to find LAN
+                        lanMove = board.sanMove(uciMove, 0); // 0 often represents LAN
                     }
+                    lanLegals[lanMove] = uciMove;
                 } catch (e) {
-                    // Skip if we can't get LAN notation
+                    // Skip moves that can't be converted to LAN
                 }
             }
             
-            if (!found) {
-                console.warn(`Warning: Move ${move} not found or invalid`);
-                processedParts.push(move);
+            // Check if move is in LAN legals (equivalent to Python's "if move in lan_legals")
+            if (lanLegals[move]) {
+                const uciMove = lanLegals[move];
+                moves.push(uciMove);
+                // Convert to SAN (default notation should be SAN)
+                const sanMove = board.sanMove(uciMove);
+                console.log(`Converting move: ${move} (LAN) -> ${uciMove} (UCI) -> ${sanMove} (SAN)`);
+                parts[i] = sanMove;
+            } else {
+                // Try the move as UCI directly
+                if (legalMoves.includes(move)) {
+                    moves.push(move);
+                    const sanMove = board.sanMove(move);
+                    console.log(`Converting move: ${move} (UCI) -> ${sanMove} (SAN)`);
+                    parts[i] = sanMove;
+                } else {
+                    console.warn(`Warning: Move ${move} not found in LAN or UCI format`);
+                    console.log('Available LAN moves:', Object.keys(lanLegals));
+                    console.log('Available UCI moves:', legalMoves.slice(0, 5), '...');
+                }
             }
             
             board.delete();
         } catch (error) {
             console.warn(`Error processing move ${move}:`, error);
-            processedParts.push(move);
         }
     }
     
-    return processedParts.join(' ');
+    return parts.join(' ');
 }
 
 
@@ -261,6 +303,25 @@ function populateVariantDropdown() {
         option.textContent = variant.charAt(0).toUpperCase() + variant.slice(1);
         select.appendChild(option);
     });
+    
+    // Add event listener to update dimension placeholders when variant changes
+    select.addEventListener('change', function() {
+        updateDimensionPlaceholders(this.value);
+    });
+}
+
+function updateDimensionPlaceholders(variant) {
+    const filesInput = document.getElementById('files-input');
+    const ranksInput = document.getElementById('ranks-input');
+    
+    if (variant) {
+        const dimensions = getBoardDimensions(variant);
+        filesInput.placeholder = `Auto: ${dimensions.files}`;
+        ranksInput.placeholder = `Auto: ${dimensions.ranks}`;
+    } else {
+        filesInput.placeholder = 'Auto: 8';
+        ranksInput.placeholder = 'Auto: 8';
+    }
 }
 
 function updateStatus(message) {
@@ -322,8 +383,11 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         const overrideVariant = document.getElementById('variant-select').value || null;
-        const files = parseInt(document.getElementById('files-input').value) || 8;
-        const ranks = parseInt(document.getElementById('ranks-input').value) || 8;
+        // Get user-specified dimensions, or null to enable auto-detection
+        const filesInput = document.getElementById('files-input').value.trim();
+        const ranksInput = document.getElementById('ranks-input').value.trim();
+        const userFiles = filesInput ? parseInt(filesInput) : null;
+        const userRanks = ranksInput ? parseInt(ranksInput) : null;
         
         try {
             updateStatus('Converting PGN4 to PGN...');
@@ -332,7 +396,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Use setTimeout to allow UI to update
             setTimeout(() => {
                 try {
-                    const result = pgn4ToPgn(pgn4Text, overrideVariant, files, ranks);
+                    const result = pgn4ToPgn(pgn4Text, overrideVariant, userFiles, userRanks);
                     output.value = result;
                     updateStatus('Conversion completed successfully!');
                     
