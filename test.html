@@ -365,16 +365,24 @@
         };
         
         window.runUnitTests = function() {
-            // Import and run the test suite
-            import('./test_suite.js').then(module => {
-                if (module.runTests) {
-                    module.runTests();
-                    updateStatus('Unit tests completed - check console', 'info');
-                }
-            }).catch(error => {
-                log('Test error: ' + error.message);
-                updateStatus('Test failed: ' + error.message, 'error');
-            });
+            // Check if the test functions are available from script.js
+            if (typeof runTests === 'function') {
+                log('Running unit tests using actual implementation...');
+                runTests();
+                updateStatus('Unit tests completed - check console and debug log', 'info');
+            } else {
+                // Fallback: try to import test_suite.js
+                import('./test_suite.js').then(module => {
+                    if (module.runTests) {
+                        log('Running unit tests from test_suite.js...');
+                        module.runTests();
+                        updateStatus('Unit tests completed - check console', 'info');
+                    }
+                }).catch(error => {
+                    log('Test error: ' + error.message);
+                    updateStatus('Test failed: ' + error.message + ' - try loading main page first', 'error');
+                });
+            }
         };
     </script>
 </body>

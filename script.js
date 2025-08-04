@@ -349,6 +349,15 @@ function clearMessages() {
     document.getElementById('error').style.display = 'none';
 }
 
+// Export functions for testing
+if (typeof window !== 'undefined') {
+    window.coords = coords;
+    window.gating = gating;
+    window.getBoardDimensions = getBoardDimensions;
+    window.pgn4ToPgn = pgn4ToPgn;
+    window.processMoveLine = processMoveLine;
+}
+
 // Event listeners
 document.addEventListener('DOMContentLoaded', function() {
     const fileInput = document.getElementById('file-input');
