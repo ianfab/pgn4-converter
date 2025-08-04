@@ -14,9 +14,20 @@ const SEIRAWAN_CASTLING = {
 };
 
 // Initialize ffish
-new Module().then(loadedModule => {
+new Module().then(async loadedModule => {
     ffish = loadedModule;
     console.log('FFish module loaded successfully');
+    
+    // Load variants.ini file
+    try {
+        const response = await fetch('./variants.ini');
+        const variantsConfig = await response.text();
+        ffish.loadVariantConfig(variantsConfig);
+        console.log('Variants configuration loaded from variants.ini');
+    } catch (error) {
+        console.warn('Could not load variants.ini:', error);
+        console.log('Continuing with default variant configuration');
+    }
     
     // Test basic functionality first
     console.log('Available ffish methods:', Object.getOwnPropertyNames(ffish).filter(name => typeof ffish[name] === 'function'));
