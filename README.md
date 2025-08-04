@@ -1,18 +1,19 @@
 # PGN4 to PGN Converter
 
-A web-based converter that transforms PGN4 format files to standard PGN format using Fairy-Stockfish WebAssembly.
+A web-based converter that transforms PGN4 format files to standard PGN format using [ffishjs](https://www.npmjs.com/package/ffish-es6).
+
+*Note: This repository is mostly AI generated. Be mindful of that, especially when relying on documentation.*
 
 ## 🚀 Recent Updates
 
-- ✅ **Fixed Seirawan Chess Support**: Now properly converts Seirawan chess games with gating moves
-- ✅ **Enhanced Coordinate Handling**: Supports non-standard board dimensions (up to 11x11)
+- ✅ **Enhanced Coordinate Handling**: Supports non-standard board dimensions
 - ✅ **Improved Gating Notation**: Correctly converts `&@yH-f11` patterns to `/H` format
 - ✅ **Added Comprehensive Tests**: Unit tests and browser-based integration tests
 - ✅ **CI/CD Pipeline**: Automated testing with GitHub Actions
 
 ## Features
 
-- **Convert PGN4 to PGN**: Transforms coordinate notation (e.g., `e2e4`) to algebraic notation (e.g., `e4`)
+- **Convert PGN4 to PGN**: Transforms coordinate notation (e.g., `g2-g4`) to algebraic notation (e.g., `e4`)
 - **Multiple Input Methods**: File upload or direct text pasting
 - **Multiple Output Methods**: Copy to clipboard or download as file
 - **Chess Variant Support**: Auto-detects variants from Site header or manual override
